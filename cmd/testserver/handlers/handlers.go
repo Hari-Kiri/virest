@@ -8,8 +8,7 @@ import (
 	"time"
 
 	"github.com/Hari-Kiri/virest/storagePool"
-	"libvirt.org/go/libvirt"
-	"libvirt.org/go/libvirtxml"
+	"github.com/Hari-Kiri/virest/utilities"
 )
 
 // Authenticate issues a JWT from HTTP Basic credentials.
@@ -79,7 +78,7 @@ func (d *Deps) List(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, err)
 		return
 	}
-	result, err := conn.List(option, inactive)
+	result, err := conn.List(utilities.ListFlags(option), utilities.XMLFlags(inactive))
 	if err != nil {
 		writeErr(w, httpStatusFor(err), err)
 		return
@@ -94,7 +93,7 @@ func (d *Deps) List(w http.ResponseWriter, r *http.Request) {
 //	@Produce		json
 //	@Security		BearerAuth
 //	@Param			Hypervisor-Uri	header		string	true	"Libvirt URI"
-//	@Param			uuid			query		string	true	"Pool UUID"
+//	@Param			uuid			query		string	true	"Pool name or UUID"
 //	@Success		200				{object}	Envelope
 //	@Failure		401				{object}	Envelope
 //	@Router			/storage-pool/info [get]
@@ -117,14 +116,14 @@ func (d *Deps) Info(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, Envelope{Response: true, Data: result})
 }
 
-// Detail returns full pool XML model.
+// Detail returns full pool dumpxml model (HTTP alias of Dump).
 //
 //	@Summary		Get pool detail
 //	@Tags			pools
 //	@Produce		json
 //	@Security		BearerAuth
 //	@Param			Hypervisor-Uri	header		string	true	"Libvirt URI"
-//	@Param			uuid			query		string	true	"Pool UUID"
+//	@Param			uuid			query		string	true	"Pool name or UUID"
 //	@Param			option			query		int		false	"XML flags"
 //	@Success		200				{object}	Envelope
 //	@Failure		401				{object}	Envelope
@@ -145,7 +144,7 @@ func (d *Deps) Detail(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, err)
 		return
 	}
-	result, err := conn.Detail(query(r, "uuid"), option)
+	result, err := conn.Dump(query(r, "uuid"), utilities.XMLFlags(option))
 	if err != nil {
 		writeErr(w, httpStatusFor(err), err)
 		return
@@ -200,8 +199,8 @@ func (d *Deps) Define(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var body struct {
-		Option      libvirt.StoragePoolDefineFlags `json:"option"`
-		StoragePool libvirtxml.StoragePool         `json:"storagePool"`
+		Option      utilities.DefineFlags `json:"option"`
+		StoragePool utilities.StoragePool          `json:"storagePool"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeErr(w, http.StatusBadRequest, err)
@@ -256,7 +255,7 @@ func (d *Deps) withUUIDConn(w http.ResponseWriter, r *http.Request, method strin
 //	@Produce		json
 //	@Security		BearerAuth
 //	@Param			Hypervisor-Uri	header		string				true	"Libvirt URI"
-//	@Param			body			body		UuidOptionRequest	true	"Pool UUID and build flags"
+//	@Param			body			body		UuidOptionRequest	true	"Pool name or UUID and build flags"
 //	@Success		200				{object}	Envelope
 //	@Failure		401				{object}	Envelope
 //	@Router			/storage-pool/build [patch]
@@ -276,7 +275,7 @@ func (d *Deps) Build(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer conn.Close()
-	if err := conn.Build(body.Uuid, libvirt.StoragePoolBuildFlags(body.Option)); err != nil {
+	if err := conn.Build(body.Uuid, utilities.BuildFlags(body.Option)); err != nil {
 		writeErr(w, httpStatusFor(err), err)
 		return
 	}
@@ -291,31 +290,13 @@ func (d *Deps) Build(w http.ResponseWriter, r *http.Request) {
 //	@Produce		json
 //	@Security		BearerAuth
 //	@Param			Hypervisor-Uri	header		string				true	"Libvirt URI"
-//	@Param			body			body		UuidOptionRequest	true	"Pool UUID and create flags"
+//	@Param			body			body		UuidOptionRequest	true	"Pool name or UUID and create flags"
 //	@Success		200				{object}	Envelope
 //	@Failure		401				{object}	Envelope
 //	@Router			/storage-pool/create [patch]
 func (d *Deps) Create(w http.ResponseWriter, r *http.Request) {
-	var body uuidOptionRequest
-	if r.Method != http.MethodPatch {
-		writeErr(w, http.StatusMethodNotAllowed, handlerError("method not allowed"))
-		return
-	}
-	if err := decodeJSON(r, &body); err != nil {
-		writeErr(w, http.StatusBadRequest, err)
-		return
-	}
-	conn, err := d.connect(r)
-	if err != nil {
-		writeErr(w, httpStatusFor(err), err)
-		return
-	}
-	defer conn.Close()
-	if err := conn.Create(body.Uuid, libvirt.StoragePoolCreateFlags(body.Option)); err != nil {
-		writeErr(w, httpStatusFor(err), err)
-		return
-	}
-	writeJSON(w, http.StatusOK, Envelope{Response: true, Data: uuidData(body.Uuid)})
+	// HTTP alias of Start (library Connection.Create removed).
+	d.Start(w, r)
 }
 
 // Destroy stops a pool.
@@ -382,7 +363,7 @@ func (d *Deps) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer conn.Close()
-	if err := conn.Delete(body.Uuid, libvirt.StoragePoolDeleteFlags(body.Option)); err != nil {
+	if err := conn.Delete(body.Uuid, utilities.DeleteFlags(body.Option)); err != nil {
 		writeErr(w, httpStatusFor(err), err)
 		return
 	}
@@ -483,7 +464,7 @@ func (d *Deps) FindSources(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var body struct {
-		Type    string                 `json:"type"`
+		Type    utilities.PoolType     `json:"type"`
 		SrcSpec storagePool.SourceSpec `json:"srcSpec"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
@@ -579,6 +560,264 @@ func (d *Deps) Event(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, Envelope{Response: true, Data: result})
+}
+
+// CreateTransient creates a transient pool from a model.
+//
+//	@Summary		Create transient pool
+//	@Tags			pools
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			Hypervisor-Uri	header		string			true	"Libvirt URI"
+//	@Param			body			body		DefineRequest	true	"Pool model and flags"
+//	@Success		201				{object}	Envelope
+//	@Failure		401				{object}	Envelope
+//	@Router			/storage-pool/create-transient [post]
+func (d *Deps) CreateTransient(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeErr(w, http.StatusMethodNotAllowed, handlerError("method not allowed"))
+		return
+	}
+	var body struct {
+		Option      utilities.CreateFlags `json:"option"`
+		StoragePool utilities.StoragePool          `json:"storagePool"`
+	}
+	if err := decodeJSON(r, &body); err != nil {
+		writeErr(w, http.StatusBadRequest, err)
+		return
+	}
+	conn, err := d.connect(r)
+	if err != nil {
+		writeErr(w, httpStatusFor(err), err)
+		return
+	}
+	defer conn.Close()
+	uuid, err := conn.CreateTransient(body.StoragePool, body.Option)
+	if err != nil {
+		writeErr(w, httpStatusFor(err), err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, Envelope{Response: true, Data: uuidData(uuid)})
+}
+
+// DefineAs defines a pool from virsh-style -as params.
+//
+//	@Summary		Define pool from args
+//	@Tags			pools
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			Hypervisor-Uri	header		string			true	"Libvirt URI"
+//	@Param			body			body		DefineAsRequest	true	"Define-as params"
+//	@Success		201				{object}	Envelope
+//	@Failure		401				{object}	Envelope
+//	@Router			/storage-pool/define-as [post]
+func (d *Deps) DefineAs(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeErr(w, http.StatusMethodNotAllowed, handlerError("method not allowed"))
+		return
+	}
+	var body DefineAsRequest
+	if err := decodeJSON(r, &body); err != nil {
+		writeErr(w, http.StatusBadRequest, err)
+		return
+	}
+	conn, err := d.connect(r)
+	if err != nil {
+		writeErr(w, httpStatusFor(err), err)
+		return
+	}
+	defer conn.Close()
+	uuid, err := conn.DefineAs(body.Params, utilities.DefineFlags(body.Option))
+	if err != nil {
+		writeErr(w, httpStatusFor(err), err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, Envelope{Response: true, Data: uuidData(uuid)})
+}
+
+// CreateAs creates a transient pool from virsh-style -as params.
+//
+//	@Summary		Create transient pool from args
+//	@Tags			pools
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			Hypervisor-Uri	header		string			true	"Libvirt URI"
+//	@Param			body			body		CreateAsRequest	true	"Create-as params"
+//	@Success		201				{object}	Envelope
+//	@Failure		401				{object}	Envelope
+//	@Router			/storage-pool/create-as [post]
+func (d *Deps) CreateAs(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeErr(w, http.StatusMethodNotAllowed, handlerError("method not allowed"))
+		return
+	}
+	var body CreateAsRequest
+	if err := decodeJSON(r, &body); err != nil {
+		writeErr(w, http.StatusBadRequest, err)
+		return
+	}
+	conn, err := d.connect(r)
+	if err != nil {
+		writeErr(w, httpStatusFor(err), err)
+		return
+	}
+	defer conn.Close()
+	uuid, err := conn.CreateAs(body.Params, utilities.CreateFlags(body.Option))
+	if err != nil {
+		writeErr(w, httpStatusFor(err), err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, Envelope{Response: true, Data: uuidData(uuid)})
+}
+
+// FindSourcesAs discovers sources from typed -as params.
+//
+//	@Summary		Find sources from args
+//	@Tags			pools
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			Hypervisor-Uri	header		string					true	"Libvirt URI"
+//	@Param			body			body		FindSourcesAsRequest	true	"Find-sources-as params"
+//	@Success		200				{object}	Envelope
+//	@Failure		401				{object}	Envelope
+//	@Router			/storage-pool/find-sources-as [post]
+func (d *Deps) FindSourcesAs(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeErr(w, http.StatusMethodNotAllowed, handlerError("method not allowed"))
+		return
+	}
+	var body FindSourcesAsRequest
+	if err := decodeJSON(r, &body); err != nil {
+		writeErr(w, http.StatusBadRequest, err)
+		return
+	}
+	conn, err := d.connect(r)
+	if err != nil {
+		writeErr(w, httpStatusFor(err), err)
+		return
+	}
+	defer conn.Close()
+	result, err := conn.FindSourcesAs(body.Type, body.Params)
+	if err != nil {
+		writeErr(w, httpStatusFor(err), err)
+		return
+	}
+	writeJSON(w, http.StatusOK, Envelope{Response: true, Data: result})
+}
+
+// Start starts a pool (virsh pool-start).
+//
+//	@Summary		Start a pool
+//	@Tags			pools
+//	@Accept			json
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			Hypervisor-Uri	header		string				true	"Libvirt URI"
+//	@Param			body			body		UuidOptionRequest	true	"Pool name or UUID and flags"
+//	@Success		200				{object}	Envelope
+//	@Failure		401				{object}	Envelope
+//	@Router			/storage-pool/start [patch]
+func (d *Deps) Start(w http.ResponseWriter, r *http.Request) {
+	var body uuidOptionRequest
+	if r.Method != http.MethodPatch {
+		writeErr(w, http.StatusMethodNotAllowed, handlerError("method not allowed"))
+		return
+	}
+	if err := decodeJSON(r, &body); err != nil {
+		writeErr(w, http.StatusBadRequest, err)
+		return
+	}
+	conn, err := d.connect(r)
+	if err != nil {
+		writeErr(w, httpStatusFor(err), err)
+		return
+	}
+	defer conn.Close()
+	if err := conn.Start(body.Uuid, utilities.CreateFlags(body.Option)); err != nil {
+		writeErr(w, httpStatusFor(err), err)
+		return
+	}
+	writeJSON(w, http.StatusOK, Envelope{Response: true, Data: uuidData(body.Uuid)})
+}
+
+// Dump returns pool dumpxml model (virsh pool-dumpxml).
+//
+//	@Summary		Dump pool description
+//	@Tags			pools
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			Hypervisor-Uri	header		string	true	"Libvirt URI"
+//	@Param			uuid			query		string	true	"Pool name or UUID"
+//	@Param			option			query		int		false	"XML flags"
+//	@Success		200				{object}	Envelope
+//	@Failure		401				{object}	Envelope
+//	@Router			/storage-pool/dump [get]
+func (d *Deps) Dump(w http.ResponseWriter, r *http.Request) {
+	d.Detail(w, r)
+}
+
+// Name returns the pool name for a ref.
+//
+//	@Summary		Pool name from ref
+//	@Tags			pools
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			Hypervisor-Uri	header		string	true	"Libvirt URI"
+//	@Param			uuid			query		string	true	"Pool name or UUID"
+//	@Success		200				{object}	Envelope
+//	@Failure		401				{object}	Envelope
+//	@Router			/storage-pool/name [get]
+func (d *Deps) Name(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeErr(w, http.StatusMethodNotAllowed, handlerError("method not allowed"))
+		return
+	}
+	conn, err := d.connect(r)
+	if err != nil {
+		writeErr(w, httpStatusFor(err), err)
+		return
+	}
+	defer conn.Close()
+	name, err := conn.Name(query(r, "uuid"))
+	if err != nil {
+		writeErr(w, httpStatusFor(err), err)
+		return
+	}
+	writeJSON(w, http.StatusOK, Envelope{Response: true, Data: map[string]string{"name": name}})
+}
+
+// UUIDByName returns the pool UUID for a name.
+//
+//	@Summary		Pool UUID from name
+//	@Tags			pools
+//	@Produce		json
+//	@Security		BearerAuth
+//	@Param			Hypervisor-Uri	header		string	true	"Libvirt URI"
+//	@Param			name			query		string	true	"Pool name"
+//	@Success		200				{object}	Envelope
+//	@Failure		401				{object}	Envelope
+//	@Router			/storage-pool/uuid-by-name [get]
+func (d *Deps) UUIDByName(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeErr(w, http.StatusMethodNotAllowed, handlerError("method not allowed"))
+		return
+	}
+	conn, err := d.connect(r)
+	if err != nil {
+		writeErr(w, httpStatusFor(err), err)
+		return
+	}
+	defer conn.Close()
+	uuid, err := conn.UUIDByName(query(r, "name"))
+	if err != nil {
+		writeErr(w, httpStatusFor(err), err)
+		return
+	}
+	writeJSON(w, http.StatusOK, Envelope{Response: true, Data: uuidData(uuid)})
 }
 
 // ProcessUID returns the testserver process UID (not a hypervisor API).

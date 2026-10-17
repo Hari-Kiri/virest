@@ -8,7 +8,6 @@ import (
 
 	"github.com/Hari-Kiri/virest/utilities"
 	"libvirt.org/go/libvirt"
-	"libvirt.org/go/libvirtxml"
 )
 
 func TestCloseNilAndClosed(t *testing.T) {
@@ -45,7 +44,7 @@ func TestDefineSuccessAndFailures(t *testing.T) {
 	hv.definePool = defined
 	conn := newConnectionForTest(hv)
 
-	uuid, err := conn.Define(libvirtxml.StoragePool{Name: "p", Type: "dir"}, 0)
+	uuid, err := conn.Define(utilities.StoragePool{Name: "p", Type: utilities.PoolTypeDir}, 0)
 	if err != nil {
 		t.Fatalf("define: %v", err)
 	}
@@ -60,13 +59,45 @@ func TestDefineSuccessAndFailures(t *testing.T) {
 	}
 
 	hv.defineErr = errors.New("define failed")
-	if _, err := conn.Define(libvirtxml.StoragePool{Name: "p", Type: "dir"}, 1); err == nil {
+	if _, err := conn.Define(utilities.StoragePool{Name: "p", Type: utilities.PoolTypeDir}, 1); err == nil {
 		t.Fatal("expected define error")
 	}
 
 	hv.defineErr = nil
 	hv.definePool = &fakePool{getUUIDErr: errors.New("uuid fail")}
-	if _, err := conn.Define(libvirtxml.StoragePool{Name: "p", Type: "dir"}, 0); err == nil {
+	if _, err := conn.Define(utilities.StoragePool{Name: "p", Type: utilities.PoolTypeDir}, 0); err == nil {
+		t.Fatal("expected uuid error")
+	}
+}
+
+func TestCreateTransientSuccessAndFailures(t *testing.T) {
+	created := &fakePool{uuid: "u-2"}
+	hv := newFakeHypervisor()
+	hv.createTransientPool = created
+	conn := newConnectionForTest(hv)
+
+	uuid, err := conn.CreateTransient(utilities.StoragePool{Name: "p", Type: utilities.PoolTypeDir}, 0)
+	if err != nil {
+		t.Fatalf("create transient: %v", err)
+	}
+	if uuid != "u-2" {
+		t.Fatalf("uuid=%s", uuid)
+	}
+	if created.freeCalls != 1 {
+		t.Fatalf("created freeCalls=%d", created.freeCalls)
+	}
+	if hv.createTransientConfig == "" {
+		t.Fatal("expected create transient config")
+	}
+
+	hv.createTransientErr = errors.New("create transient failed")
+	if _, err := conn.CreateTransient(utilities.StoragePool{Name: "p", Type: utilities.PoolTypeDir}, 1); err == nil {
+		t.Fatal("expected create transient error")
+	}
+
+	hv.createTransientErr = nil
+	hv.createTransientPool = &fakePool{getUUIDErr: errors.New("uuid fail")}
+	if _, err := conn.CreateTransient(utilities.StoragePool{Name: "p", Type: utilities.PoolTypeDir}, 0); err == nil {
 		t.Fatal("expected uuid error")
 	}
 }
@@ -74,7 +105,7 @@ func TestDefineSuccessAndFailures(t *testing.T) {
 func TestLifecycleOps(t *testing.T) {
 	pool := &fakePool{}
 	hv := newFakeHypervisor()
-	hv.poolsByUUID["abc"] = pool
+	hv.registerPool("abc", pool)
 	conn := newConnectionForTest(hv)
 
 	tests := []struct {
@@ -84,7 +115,7 @@ func TestLifecycleOps(t *testing.T) {
 	}{
 		{
 			name: "build",
-			call: func() error { return conn.Build("abc", libvirt.STORAGE_POOL_BUILD_NEW) },
+			call: func() error { return conn.Build("abc", utilities.Flags.Build.New) },
 			check: func(t *testing.T) {
 				if pool.buildFlags != libvirt.STORAGE_POOL_BUILD_NEW {
 					t.Fatalf("flags=%v", pool.buildFlags)
@@ -92,8 +123,8 @@ func TestLifecycleOps(t *testing.T) {
 			},
 		},
 		{
-			name: "create",
-			call: func() error { return conn.Create("abc", libvirt.STORAGE_POOL_CREATE_NORMAL) },
+			name: "start",
+			call: func() error { return conn.Start("abc", utilities.Flags.Create.Normal) },
 			check: func(t *testing.T) {
 				if pool.createFlags != libvirt.STORAGE_POOL_CREATE_NORMAL {
 					t.Fatalf("flags=%v", pool.createFlags)
@@ -106,7 +137,7 @@ func TestLifecycleOps(t *testing.T) {
 		},
 		{
 			name: "delete",
-			call: func() error { return conn.Delete("abc", libvirt.STORAGE_POOL_DELETE_NORMAL) },
+			call: func() error { return conn.Delete("abc", utilities.Flags.Delete.Normal) },
 			check: func(t *testing.T) {
 				if pool.deleteFlags != libvirt.STORAGE_POOL_DELETE_NORMAL {
 					t.Fatalf("flags=%v", pool.deleteFlags)
@@ -164,30 +195,30 @@ func TestLifecycleOps(t *testing.T) {
 	}
 }
 
-func TestDetailSuccessAndFailures(t *testing.T) {
+func TestDumpSuccessAndFailures(t *testing.T) {
 	pool := &fakePool{
 		xmlDesc: `<pool type='dir'><name>demo</name><uuid>u-1</uuid></pool>`,
 	}
 	hv := newFakeHypervisor()
-	hv.poolsByUUID["u-1"] = pool
+	hv.registerPool("u-1", pool)
 	conn := newConnectionForTest(hv)
 
-	detail, err := conn.Detail("u-1", 0)
+	detail, err := conn.Dump("u-1", 0)
 	if err != nil {
-		t.Fatalf("detail: %v", err)
+		t.Fatalf("dump: %v", err)
 	}
 	if detail.Name != "demo" {
 		t.Fatalf("name=%s", detail.Name)
 	}
 
 	pool.getXMLErr = errors.New("xml fail")
-	if _, err := conn.Detail("u-1", 0); err == nil {
+	if _, err := conn.Dump("u-1", 0); err == nil {
 		t.Fatal("expected xml error")
 	}
 
 	pool.getXMLErr = nil
 	pool.xmlDesc = "not-xml"
-	if _, err := conn.Detail("u-1", 0); err == nil {
+	if _, err := conn.Dump("u-1", 0); err == nil {
 		t.Fatal("expected unmarshal error")
 	}
 }
@@ -205,7 +236,7 @@ func TestInfoSuccessAndFieldFailure(t *testing.T) {
 		},
 	}
 	hv := newFakeHypervisor()
-	hv.poolsByUUID["u"] = pool
+	hv.registerPool("u", pool)
 	conn := newConnectionForTest(hv)
 
 	info, err := conn.Info("u")
@@ -278,7 +309,7 @@ func TestCapabilitiesAndFindSources(t *testing.T) {
 	if err != nil {
 		t.Fatalf("caps: %v", err)
 	}
-	if len(caps.Pool) != 1 || caps.Pool[0].Type != "dir" {
+	if len(caps.Pool) != 1 || caps.Pool[0].Type != utilities.PoolTypeDir.String() {
 		t.Fatalf("caps=%+v", caps)
 	}
 
@@ -294,11 +325,11 @@ func TestCapabilitiesAndFindSources(t *testing.T) {
 	}
 
 	hv.findSourcesXML = `<sources></sources>`
-	sources, err := conn.FindSources("netfs", SourceSpec{Host: Host{Name: "h", Port: 2049}})
+	sources, err := conn.FindSources(utilities.PoolTypeNetFS, SourceSpec{Host: Host{Name: "h", Port: 2049}})
 	if err != nil {
 		t.Fatalf("find: %v", err)
 	}
-	if hv.findPoolType != "netfs" || sources.Source == nil && len(sources.Source) != 0 {
+	if hv.findPoolType != utilities.PoolTypeNetFS.String() || sources.Source == nil && len(sources.Source) != 0 {
 		// empty sources is fine
 	}
 	if hv.findSrcSpec == "" {
@@ -306,7 +337,7 @@ func TestCapabilitiesAndFindSources(t *testing.T) {
 	}
 
 	hv.findSourcesErr = errors.New("find fail")
-	if _, err := conn.FindSources("netfs", SourceSpec{}); err == nil {
+	if _, err := conn.FindSources(utilities.PoolTypeNetFS, SourceSpec{}); err == nil {
 		t.Fatal("expected find error")
 	}
 }
@@ -314,7 +345,7 @@ func TestCapabilitiesAndFindSources(t *testing.T) {
 func TestWaitEventAndStreamEvents(t *testing.T) {
 	pool := &fakePool{}
 	hv := newFakeHypervisor()
-	hv.poolsByUUID["u"] = pool
+	hv.registerPool("u", pool)
 	conn := newConnectionForTest(hv)
 
 	if _, err := conn.WaitEvent("u", 99); err == nil {
@@ -349,7 +380,7 @@ func TestWaitEventAndStreamEvents(t *testing.T) {
 
 	select {
 	case ev := <-done:
-		if ev.EventLifecycle.Event != libvirt.STORAGE_POOL_EVENT_STARTED {
+		if ev.EventLifecycle != PoolEventLifecycleStarted {
 			t.Fatalf("event=%v", ev.EventLifecycle)
 		}
 		if len(hv.deregisterCalls) == 0 {
@@ -429,5 +460,131 @@ func TestErrorsAsLibvirt(t *testing.T) {
 	plain := wrap("op", errors.New("plain"))
 	if _, ok := utilities.AsLibvirtError(plain); ok {
 		t.Fatal("plain error should not be libvirt.Error")
+	}
+}
+
+func TestLookupByNameAndUUID(t *testing.T) {
+	const uuid = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+	pool := &fakePool{uuid: uuid, name: "demo"}
+	hv := newFakeHypervisor()
+	hv.registerPool(uuid, pool)
+	hv.registerPool("demo", pool)
+	conn := newConnectionForTest(hv)
+
+	if err := conn.Destroy("demo"); err != nil {
+		t.Fatalf("destroy by name: %v", err)
+	}
+	if err := conn.Destroy(uuid); err != nil {
+		t.Fatalf("destroy by uuid: %v", err)
+	}
+	if err := conn.Destroy("missing-pool"); err == nil {
+		t.Fatal("expected missing name error")
+	}
+}
+
+func TestStartDumpNameUUIDByName(t *testing.T) {
+	pool := &fakePool{
+		uuid:    "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+		name:    "demo",
+		xmlDesc: `<pool type='dir'><name>demo</name><uuid>a1b2c3d4-e5f6-7890-abcd-ef1234567890</uuid></pool>`,
+	}
+	hv := newFakeHypervisor()
+	hv.registerPool("demo", pool)
+	hv.registerPool(pool.uuid, pool)
+	conn := newConnectionForTest(hv)
+
+	if err := conn.Start("demo", 0); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+	detail, err := conn.Dump("demo", 0)
+	if err != nil {
+		t.Fatalf("dump: %v", err)
+	}
+	if detail.Name != "demo" {
+		t.Fatalf("name=%s", detail.Name)
+	}
+	name, err := conn.Name(pool.uuid)
+	if err != nil {
+		t.Fatalf("name: %v", err)
+	}
+	if name != "demo" {
+		t.Fatalf("got name %s", name)
+	}
+	uuid, err := conn.UUIDByName("demo")
+	if err != nil {
+		t.Fatalf("uuid by name: %v", err)
+	}
+	if uuid != pool.uuid {
+		t.Fatalf("uuid=%s", uuid)
+	}
+	if _, err := conn.Name("nope"); err == nil {
+		t.Fatal("expected name lookup error")
+	}
+}
+
+func TestListPresets(t *testing.T) {
+	hv := newFakeHypervisor()
+	conn := newConnectionForTest(hv)
+	if _, err := conn.ListActive(0); err != nil {
+		t.Fatalf("ListActive: %v", err)
+	}
+	if hv.listFlagsSeen != libvirt.CONNECT_LIST_STORAGE_POOLS_ACTIVE {
+		t.Fatalf("active flags=%v", hv.listFlagsSeen)
+	}
+	if _, err := conn.ListInactive(0); err != nil {
+		t.Fatalf("ListInactive: %v", err)
+	}
+	if hv.listFlagsSeen != libvirt.CONNECT_LIST_STORAGE_POOLS_INACTIVE {
+		t.Fatalf("inactive flags=%v", hv.listFlagsSeen)
+	}
+	if _, err := conn.ListAll(0); err != nil {
+		t.Fatalf("ListAll: %v", err)
+	}
+	want := libvirt.CONNECT_LIST_STORAGE_POOLS_ACTIVE | libvirt.CONNECT_LIST_STORAGE_POOLS_INACTIVE
+	if hv.listFlagsSeen != want {
+		t.Fatalf("all flags=%v want %v", hv.listFlagsSeen, want)
+	}
+}
+
+func TestDefineAsCreateAsFindSourcesAs(t *testing.T) {
+	defined := &fakePool{uuid: "u-as"}
+	hv := newFakeHypervisor()
+	hv.definePool = defined
+	hv.createTransientPool = &fakePool{uuid: "u-cas"}
+	hv.findSourcesXML = `<sources></sources>`
+	conn := newConnectionForTest(hv)
+
+	params := utilities.DefineAsParams{Name: "images", Type: utilities.PoolTypeDir, TargetPath: "/var/lib/libvirt/images"}
+	uuid, err := conn.DefineAs(params, 0)
+	if err != nil {
+		t.Fatalf("DefineAs: %v", err)
+	}
+	if uuid != "u-as" {
+		t.Fatalf("uuid=%s", uuid)
+	}
+	if hv.defineXML == "" {
+		t.Fatal("expected define xml")
+	}
+
+	uuid, err = conn.CreateAs(utilities.CreateAsParams(params), 0)
+	if err != nil {
+		t.Fatalf("CreateAs: %v", err)
+	}
+	if uuid != "u-cas" {
+		t.Fatalf("uuid=%s", uuid)
+	}
+
+	if _, err := conn.DefineAs(utilities.DefineAsParams{Type: utilities.PoolTypeDir}, 0); err == nil {
+		t.Fatal("expected DefineAs validation error")
+	}
+
+	_, err = conn.FindSourcesAs(utilities.PoolTypeISCSI, utilities.FindSourcesAsParams{
+		Host: "1.2.3.4", Port: 3260, Initiator: "iqn.1993-08.org.debian:01:abc",
+	})
+	if err != nil {
+		t.Fatalf("FindSourcesAs: %v", err)
+	}
+	if hv.findPoolType != utilities.PoolTypeISCSI.String() {
+		t.Fatalf("poolType=%s", hv.findPoolType)
 	}
 }

@@ -3,6 +3,7 @@ package storagePool
 import (
 	"sync"
 
+	"github.com/Hari-Kiri/virest/utilities"
 	"libvirt.org/go/libvirt"
 )
 
@@ -20,12 +21,19 @@ type fakeHypervisor struct {
 	listFlagsSeen libvirt.ConnectListAllStoragePoolsFlags
 
 	poolsByUUID map[string]poolHandle
+	poolsByName map[string]poolHandle
 	lookupErr   error
+	lookupByNameErr error
 
 	definePool   poolHandle
 	defineErr    error
 	defineXML    string
 	defineFlags  libvirt.StoragePoolDefineFlags
+
+	createTransientPool   poolHandle
+	createTransientErr    error
+	createTransientConfig string
+	createTransientFlags  libvirt.StoragePoolCreateFlags
 
 	capabilitiesXML string
 	capabilitiesErr error
@@ -48,8 +56,18 @@ type fakeHypervisor struct {
 func newFakeHypervisor() *fakeHypervisor {
 	return &fakeHypervisor{
 		poolsByUUID:    map[string]poolHandle{},
+		poolsByName:    map[string]poolHandle{},
 		nextCallbackID: 1,
 	}
+}
+
+// registerPool stores pool under UUID or name lookup based on ref shape.
+func (f *fakeHypervisor) registerPool(ref string, p poolHandle) {
+	if utilities.LooksLikeUUID(ref) {
+		f.poolsByUUID[ref] = p
+		return
+	}
+	f.poolsByName[ref] = p
 }
 
 func (f *fakeHypervisor) Close() (int, error) {
@@ -84,6 +102,22 @@ func (f *fakeHypervisor) LookupStoragePoolByUUIDString(uuid string) (poolHandle,
 	return pool, nil
 }
 
+func (f *fakeHypervisor) LookupStoragePoolByName(name string) (poolHandle, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.lookupByNameErr != nil {
+		return nil, f.lookupByNameErr
+	}
+	if f.lookupErr != nil {
+		return nil, f.lookupErr
+	}
+	pool, ok := f.poolsByName[name]
+	if !ok {
+		return nil, libvirt.Error{Code: libvirt.ERR_NO_STORAGE_POOL, Message: "not found"}
+	}
+	return pool, nil
+}
+
 func (f *fakeHypervisor) StoragePoolDefineXML(xmlConfig string, flags libvirt.StoragePoolDefineFlags) (poolHandle, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -93,6 +127,17 @@ func (f *fakeHypervisor) StoragePoolDefineXML(xmlConfig string, flags libvirt.St
 		return nil, f.defineErr
 	}
 	return f.definePool, nil
+}
+
+func (f *fakeHypervisor) CreateTransient(config string, flags libvirt.StoragePoolCreateFlags) (poolHandle, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.createTransientConfig = config
+	f.createTransientFlags = flags
+	if f.createTransientErr != nil {
+		return nil, f.createTransientErr
+	}
+	return f.createTransientPool, nil
 }
 
 func (f *fakeHypervisor) GetStoragePoolCapabilities(flags uint32) (string, error) {

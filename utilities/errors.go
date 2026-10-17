@@ -24,8 +24,21 @@ func AsLibvirtError(err error) (libvirt.Error, bool) {
 	return libvirt.Error{}, false
 }
 
-// Code returns the libvirt error number when err unwraps to libvirt.Error.
-func Code(err error) (libvirt.ErrorNumber, bool) {
+// ErrorNumber mirrors libvirt's error number type so callers never
+// import libvirt.org/go/libvirt.
+type CodeError = libvirt.ErrorNumber
+
+// Libvirt error code constants mirrored for caller use.
+const (
+	ErrAuthFailed    CodeError = libvirt.ERR_AUTH_FAILED
+	ErrNoStoragePool CodeError = libvirt.ERR_NO_STORAGE_POOL
+	ErrNoSupport     CodeError = libvirt.ERR_NO_SUPPORT
+	ErrInvalidArg    CodeError = libvirt.ERR_INVALID_ARG
+	ErrInvalidConn   CodeError = libvirt.ERR_INVALID_CONN
+)
+
+// Code returns the libvirt error code when err unwraps to libvirt.Error.
+func Code(err error) (CodeError, bool) {
 	lv, ok := AsLibvirtError(err)
 	if !ok {
 		return 0, false

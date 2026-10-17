@@ -51,25 +51,24 @@ See also [`examples/basic`](examples/basic).
 
 ## Library API
 
+Pool models use **`utilities.StoragePool`** (and related types) — callers do not import `libvirtxml`. Full method wiki: [`storagePool/README.md`](storagePool/README.md).
+
 | Method | Purpose |
 |--------|---------|
 | `Connect` / `Close` | Open and release a hypervisor connection |
-| `Define` / `Build` / `Create` | Define and start pools |
+| `Define` / `DefineAs` / `CreateTransient` / `CreateAs` | Define or create pools (model or `-as` params) |
+| `Build` / `Create` / `Start` | Build and start defined pools |
 | `Destroy` / `Undefine` / `Delete` | Stop, remove definition, delete resources |
 | `Refresh` / `Autostart` | Refresh volumes; set autostart |
-| `List` / `Info` / `Detail` | Inspect pools |
-| `Capabilities` / `FindSources` | Discovery helpers |
+| `List` / `ListActive` / `ListInactive` / `ListAll` / `Info` / `Dump` | Inspect pools |
+| `Name` / `UUIDByName` | Resolve name ↔ UUID |
+| `Capabilities` / `FindSources` / `FindSourcesAs` | Discovery helpers |
 | `WaitEvent` / `StreamEvents` | Lifecycle/refresh events |
 
-`StreamEvents` is transport-agnostic (`context` + callback). For event APIs, register the process-wide libvirt event loop once:
+`StreamEvents` is transport-agnostic (`context` + callback). For event APIs, register and run the process-wide libvirt event loop once:
 
 ```go
-libvirt.EventRegisterDefaultImpl()
-go func() {
-	for {
-		_ = libvirt.EventRunDefaultImpl()
-	}
-}()
+storagePool.RegisterEventLoop()
 ```
 
 ## Tests

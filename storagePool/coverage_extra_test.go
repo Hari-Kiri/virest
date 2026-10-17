@@ -8,7 +8,6 @@ import (
 
 	"github.com/Hari-Kiri/virest/utilities"
 	"libvirt.org/go/libvirt"
-	"libvirt.org/go/libvirtxml"
 )
 
 func TestConnectPositiveNegative(t *testing.T) {
@@ -111,25 +110,25 @@ func TestListFreeError(t *testing.T) {
 func TestInfoRefFailure(t *testing.T) {
 	pool := &fakePool{refErr: errors.New("ref fail")}
 	hv := newFakeHypervisor()
-	hv.poolsByUUID["u"] = pool
+	hv.registerPool("u", pool)
 	conn := newConnectionForTest(hv)
 	if _, err := conn.Info("u"); err == nil {
 		t.Fatal("expected ref error")
 	}
 }
 
-func TestDetailXMLErrors(t *testing.T) {
+func TestDumpXMLErrors(t *testing.T) {
 	pool := &fakePool{getXMLErr: errors.New("xml fail")}
 	hv := newFakeHypervisor()
-	hv.poolsByUUID["u"] = pool
+	hv.registerPool("u", pool)
 	conn := newConnectionForTest(hv)
-	if _, err := conn.Detail("u", 0); err == nil {
+	if _, err := conn.Dump("u", 0); err == nil {
 		t.Fatal("expected xml error")
 	}
 
 	pool.getXMLErr = nil
 	pool.xmlDesc = "not-xml"
-	if _, err := conn.Detail("u", 0); err == nil {
+	if _, err := conn.Dump("u", 0); err == nil {
 		t.Fatal("expected unmarshal error")
 	}
 }
@@ -138,7 +137,7 @@ func TestFindSourcesUnmarshalError(t *testing.T) {
 	hv := newFakeHypervisor()
 	hv.findSourcesXML = "bad"
 	conn := newConnectionForTest(hv)
-	if _, err := conn.FindSources("dir", SourceSpec{}); err == nil {
+	if _, err := conn.FindSources(utilities.PoolTypeDir, SourceSpec{}); err == nil {
 		t.Fatal("expected unmarshal error")
 	}
 }
@@ -146,7 +145,7 @@ func TestFindSourcesUnmarshalError(t *testing.T) {
 func TestWaitRefreshEvent(t *testing.T) {
 	pool := &fakePool{}
 	hv := newFakeHypervisor()
-	hv.poolsByUUID["u"] = pool
+	hv.registerPool("u", pool)
 	conn := newConnectionForTest(hv)
 
 	done := make(chan Event, 1)
@@ -187,7 +186,7 @@ func TestWaitRefreshEvent(t *testing.T) {
 func TestWaitEventRegisterErrors(t *testing.T) {
 	pool := &fakePool{}
 	hv := newFakeHypervisor()
-	hv.poolsByUUID["u"] = pool
+	hv.registerPool("u", pool)
 	hv.lifecycleRegisterErr = errors.New("reg fail")
 	conn := newConnectionForTest(hv)
 	if _, err := conn.WaitEvent("u", EventLifecycle); err == nil {
@@ -204,7 +203,7 @@ func TestWaitEventRegisterErrors(t *testing.T) {
 func TestStreamEventsEmitErrorAndLifecycle(t *testing.T) {
 	pool := &fakePool{}
 	hv := newFakeHypervisor()
-	hv.poolsByUUID["u"] = pool
+	hv.registerPool("u", pool)
 	conn := newConnectionForTest(hv)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -251,8 +250,18 @@ func TestDefineMarshalEdge(t *testing.T) {
 	hv := newFakeHypervisor()
 	hv.definePool = defined
 	conn := newConnectionForTest(hv)
-	if _, err := conn.Define(libvirtxml.StoragePool{Name: "p", Type: "dir"}, 0); err == nil {
+	if _, err := conn.Define(utilities.StoragePool{Name: "p", Type: utilities.PoolTypeDir}, 0); err == nil {
 		t.Fatal("expected free error after define")
+	}
+}
+
+func TestCreateTransientMarshalEdge(t *testing.T) {
+	created := &fakePool{uuid: "u", freeErr: errors.New("free created")}
+	hv := newFakeHypervisor()
+	hv.createTransientPool = created
+	conn := newConnectionForTest(hv)
+	if _, err := conn.CreateTransient(utilities.StoragePool{Name: "p", Type: utilities.PoolTypeDir}, 0); err == nil {
+		t.Fatal("expected free error after create transient")
 	}
 }
 

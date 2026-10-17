@@ -46,12 +46,20 @@ func (c *Connection) Close() error {
 	return wrap("close", err)
 }
 
-// lookupPool looks up a pool by UUID and returns it. Caller must Free.
-func (c *Connection) lookupPool(uuid string) (poolHandle, error) {
+// lookupPool looks up a pool by UUID or name (virsh-style ref). Caller must Free.
+// UUID-shaped refs use LookupStoragePoolByUUIDString only (one round-trip).
+func (c *Connection) lookupPool(ref string) (poolHandle, error) {
 	if c == nil || c.hv == nil {
 		return nil, errConnectionClosed
 	}
-	pool, err := c.hv.LookupStoragePoolByUUIDString(uuid)
+	if utilities.LooksLikeUUID(ref) {
+		pool, err := c.hv.LookupStoragePoolByUUIDString(ref)
+		if err != nil {
+			return nil, wrap("lookup storage pool", err)
+		}
+		return pool, nil
+	}
+	pool, err := c.hv.LookupStoragePoolByName(ref)
 	if err != nil {
 		return nil, wrap("lookup storage pool", err)
 	}

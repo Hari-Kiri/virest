@@ -123,7 +123,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Pool UUID and build flags",
+                        "description": "Pool name or UUID and build flags",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -213,7 +213,7 @@ const docTemplate = `{
                         "required": true
                     },
                     {
-                        "description": "Pool UUID and create flags",
+                        "description": "Pool name or UUID and create flags",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -225,6 +225,108 @@ const docTemplate = `{
                 "responses": {
                     "200": {
                         "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/storage-pool/create-as": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "pools"
+                ],
+                "summary": "Create transient pool from args",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Libvirt URI",
+                        "name": "Hypervisor-Uri",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Create-as params",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.CreateAsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/storage-pool/create-transient": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "pools"
+                ],
+                "summary": "Create transient pool",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Libvirt URI",
+                        "name": "Hypervisor-Uri",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Pool model and flags",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.DefineRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
                         "schema": {
                             "$ref": "#/definitions/handlers.Envelope"
                         }
@@ -270,6 +372,57 @@ const docTemplate = `{
                         "required": true,
                         "schema": {
                             "$ref": "#/definitions/handlers.DefineRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/storage-pool/define-as": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "pools"
+                ],
+                "summary": "Define pool from args",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Libvirt URI",
+                        "name": "Hypervisor-Uri",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Define-as params",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.DefineAsRequest"
                         }
                     }
                 ],
@@ -415,7 +568,59 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Pool UUID",
+                        "description": "Pool name or UUID",
+                        "name": "uuid",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "XML flags",
+                        "name": "option",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/storage-pool/dump": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "pools"
+                ],
+                "summary": "Dump pool description",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Libvirt URI",
+                        "name": "Hypervisor-Uri",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Pool name or UUID",
                         "name": "uuid",
                         "in": "query",
                         "required": true
@@ -489,6 +694,57 @@ const docTemplate = `{
                         "description": "SSE timeout seconds",
                         "name": "timeout",
                         "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/storage-pool/find-sources-as": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "pools"
+                ],
+                "summary": "Find sources from args",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Libvirt URI",
+                        "name": "Hypervisor-Uri",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Find-sources-as params",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.FindSourcesAsRequest"
+                        }
                     }
                 ],
                 "responses": {
@@ -660,7 +916,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Pool UUID",
+                        "description": "Pool name or UUID",
                         "name": "uuid",
                         "in": "query",
                         "required": true
@@ -733,6 +989,52 @@ const docTemplate = `{
                 }
             }
         },
+        "/storage-pool/name": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "pools"
+                ],
+                "summary": "Pool name from ref",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Libvirt URI",
+                        "name": "Hypervisor-Uri",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Pool name or UUID",
+                        "name": "uuid",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Envelope"
+                        }
+                    }
+                }
+            }
+        },
         "/storage-pool/refresh": {
             "post": {
                 "security": [
@@ -763,6 +1065,57 @@ const docTemplate = `{
                         "description": "Pool UUID (or JSON body)",
                         "name": "uuid",
                         "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Envelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/storage-pool/start": {
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "pools"
+                ],
+                "summary": "Start a pool",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Libvirt URI",
+                        "name": "Hypervisor-Uri",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Pool name or UUID and flags",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.UuidOptionRequest"
+                        }
                     }
                 ],
                 "responses": {
@@ -831,6 +1184,52 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/storage-pool/uuid-by-name": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "pools"
+                ],
+                "summary": "Pool UUID from name",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Libvirt URI",
+                        "name": "Hypervisor-Uri",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Pool name",
+                        "name": "name",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Envelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.Envelope"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
@@ -846,6 +1245,12 @@ const docTemplate = `{
                     "example": "00000000-0000-0000-0000-000000000000"
                 }
             }
+        },
+        "handlers.CreateAsRequest": {
+            "type": "object"
+        },
+        "handlers.DefineAsRequest": {
+            "type": "object"
         },
         "handlers.DefineRequest": {
             "type": "object",
@@ -871,6 +1276,9 @@ const docTemplate = `{
                     "type": "boolean"
                 }
             }
+        },
+        "handlers.FindSourcesAsRequest": {
+            "type": "object"
         },
         "handlers.FindSourcesRequest": {
             "type": "object",

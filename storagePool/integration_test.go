@@ -8,8 +8,7 @@ import (
 	"testing"
 
 	"github.com/Hari-Kiri/virest/storagePool"
-	"libvirt.org/go/libvirt"
-	"libvirt.org/go/libvirtxml"
+	"github.com/Hari-Kiri/virest/utilities"
 )
 
 func TestIntegrationLifecycle(t *testing.T) {
@@ -32,10 +31,10 @@ func TestIntegrationLifecycle(t *testing.T) {
 	defer conn.Close()
 
 	name := "virest-integration-" + filepath.Base(dir)
-	uuid, err := conn.Define(libvirtxml.StoragePool{
-		Type: "dir",
+	uuid, err := conn.Define(utilities.StoragePool{
+		Type: utilities.PoolTypeDir,
 		Name: name,
-		Target: &libvirtxml.StoragePoolTarget{
+		Target: &utilities.StoragePoolTarget{
 			Path: dir,
 		},
 	}, 0)
@@ -44,16 +43,16 @@ func TestIntegrationLifecycle(t *testing.T) {
 	}
 	t.Cleanup(func() {
 		_ = conn.Destroy(uuid)
-		_ = conn.Delete(uuid, libvirt.STORAGE_POOL_DELETE_NORMAL)
+		_ = conn.Delete(uuid, utilities.Flags.Delete.Normal)
 		_ = conn.Undefine(uuid)
 	})
 
-	if err := conn.Build(uuid, libvirt.STORAGE_POOL_BUILD_NEW); err != nil {
+	if err := conn.Build(uuid, utilities.Flags.Build.New); err != nil {
 		// Some dir pools do not need build; continue if already built.
 		t.Logf("build: %v", err)
 	}
-	if err := conn.Create(uuid, libvirt.STORAGE_POOL_CREATE_NORMAL); err != nil {
-		t.Fatalf("create: %v", err)
+	if err := conn.Start(uuid, utilities.Flags.Create.Normal); err != nil {
+		t.Fatalf("start: %v", err)
 	}
 	info, err := conn.Info(uuid)
 	if err != nil {

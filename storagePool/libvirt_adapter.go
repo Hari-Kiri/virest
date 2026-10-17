@@ -38,8 +38,24 @@ func (h *libvirtHypervisor) LookupStoragePoolByUUIDString(uuid string) (poolHand
 	return &libvirtPool{pool: pool}, nil
 }
 
+func (h *libvirtHypervisor) LookupStoragePoolByName(name string) (poolHandle, error) {
+	pool, err := h.conn.LookupStoragePoolByName(name)
+	if err != nil {
+		return nil, err
+	}
+	return &libvirtPool{pool: pool}, nil
+}
+
 func (h *libvirtHypervisor) StoragePoolDefineXML(xmlConfig string, flags libvirt.StoragePoolDefineFlags) (poolHandle, error) {
 	pool, err := h.conn.StoragePoolDefineXML(xmlConfig, flags)
+	if err != nil {
+		return nil, err
+	}
+	return &libvirtPool{pool: pool}, nil
+}
+
+func (h *libvirtHypervisor) CreateTransient(config string, flags libvirt.StoragePoolCreateFlags) (poolHandle, error) {
+	pool, err := h.conn.StoragePoolCreateXML(config, flags)
 	if err != nil {
 		return nil, err
 	}

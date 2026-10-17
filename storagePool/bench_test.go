@@ -3,8 +3,8 @@ package storagePool
 import (
 	"testing"
 
+	"github.com/Hari-Kiri/virest/utilities"
 	"libvirt.org/go/libvirt"
-	"libvirt.org/go/libvirtxml"
 )
 
 func BenchmarkInfo(b *testing.B) {
@@ -21,7 +21,7 @@ func BenchmarkInfo(b *testing.B) {
 		},
 	}
 	hv := newFakeHypervisor()
-	hv.poolsByUUID["u"] = pool
+	hv.registerPool("u", pool)
 	conn := newConnectionForTest(hv)
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -62,7 +62,7 @@ func BenchmarkList(b *testing.B) {
 func BenchmarkLifecycle(b *testing.B) {
 	pool := &fakePool{}
 	hv := newFakeHypervisor()
-	hv.poolsByUUID["u"] = pool
+	hv.registerPool("u", pool)
 	conn := newConnectionForTest(hv)
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -70,7 +70,7 @@ func BenchmarkLifecycle(b *testing.B) {
 		if err := conn.Build("u", 0); err != nil {
 			b.Fatal(err)
 		}
-		if err := conn.Create("u", 0); err != nil {
+		if err := conn.Start("u", 0); err != nil {
 			b.Fatal(err)
 		}
 		if err := conn.Destroy("u"); err != nil {
@@ -83,11 +83,67 @@ func BenchmarkDefine(b *testing.B) {
 	hv := newFakeHypervisor()
 	hv.definePool = &fakePool{uuid: "u"}
 	conn := newConnectionForTest(hv)
-	model := libvirtxml.StoragePool{Name: "p", Type: "dir"}
+	model := utilities.StoragePool{Name: "p", Type: utilities.PoolTypeDir}
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		if _, err := conn.Define(model, 0); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkCreateTransient(b *testing.B) {
+	hv := newFakeHypervisor()
+	hv.createTransientPool = &fakePool{uuid: "u"}
+	conn := newConnectionForTest(hv)
+	model := utilities.StoragePool{Name: "p", Type: utilities.PoolTypeDir}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if _, err := conn.CreateTransient(model, 0); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkDefineAs(b *testing.B) {
+	hv := newFakeHypervisor()
+	hv.definePool = &fakePool{uuid: "u"}
+	conn := newConnectionForTest(hv)
+	params := utilities.DefineAsParams{Name: "images", Type: utilities.PoolTypeDir, TargetPath: "/var/lib/libvirt/images"}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if _, err := conn.DefineAs(params, 0); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkCreateAs(b *testing.B) {
+	hv := newFakeHypervisor()
+	hv.createTransientPool = &fakePool{uuid: "u"}
+	conn := newConnectionForTest(hv)
+	params := utilities.CreateAsParams{Name: "images", Type: utilities.PoolTypeDir, TargetPath: "/var/lib/libvirt/images"}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if _, err := conn.CreateAs(params, 0); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkLookupByName(b *testing.B) {
+	pool := &fakePool{name: "p", uuid: "u"}
+	hv := newFakeHypervisor()
+	hv.registerPool("p", pool)
+	conn := newConnectionForTest(hv)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if err := conn.Destroy("p"); err != nil {
 			b.Fatal(err)
 		}
 	}

@@ -3,34 +3,35 @@ package storagePool
 import (
 	"encoding/xml"
 
+	"github.com/Hari-Kiri/virest/utilities"
 	"libvirt.org/go/libvirt"
-	"libvirt.org/go/libvirtxml"
 )
 
-// Detail returns the full XML description of a storage pool.
-func (c *Connection) Detail(uuid string, xmlFlags uint) (detail Detail, err error) {
-	pool, err := c.lookupPool(uuid)
+// Dump returns the full pool description as a typed model.
+// ref is a pool name or UUID. Equivalent to virsh pool-dumpxml.
+func (c *Connection) Dump(ref string, xmlFlags utilities.XMLFlags) (detail Detail, err error) {
+	pool, err := c.lookupPool(ref)
 	if err != nil {
 		return Detail{}, err
 	}
 	defer finishFree(pool, &err)
 
-	model, err := poolXML(pool, libvirt.StorageXMLFlags(xmlFlags))
+	model, err := poolXML(pool, xmlFlags.Libvirt())
 	if err != nil {
 		return Detail{}, err
 	}
 	return Detail{StoragePool: model}, nil
 }
 
-func poolXML(pool poolHandle, flags libvirt.StorageXMLFlags) (libvirtxml.StoragePool, error) {
+func poolXML(pool poolHandle, flags libvirt.StorageXMLFlags) (utilities.StoragePool, error) {
 	doc, err := pool.GetXMLDesc(flags)
 	if err != nil {
-		return libvirtxml.StoragePool{}, wrap("get pool xml", err)
+		return utilities.StoragePool{}, wrap("get pool xml", err)
 	}
-	var model libvirtxml.StoragePool
+	var model utilities.StoragePool
 	err = model.Unmarshal(doc)
 	if err != nil {
-		return libvirtxml.StoragePool{}, wrap("unmarshal pool xml", err)
+		return utilities.StoragePool{}, wrap("unmarshal pool xml", err)
 	}
 	return model, nil
 }
@@ -50,12 +51,12 @@ func (c *Connection) Capabilities() (Capabilities, error) {
 }
 
 // FindSources discovers available storage pool sources for the given pool type.
-func (c *Connection) FindSources(poolType string, src SourceSpec) (Sources, error) {
+func (c *Connection) FindSources(poolType utilities.PoolType, src SourceSpec) (Sources, error) {
 	srcXML, err := xml.MarshalIndent(src, "", "  ")
 	if err != nil {
 		return Sources{}, wrap("marshal source spec", err)
 	}
-	doc, err := c.hv.FindStoragePoolSources(poolType, string(srcXML), 0)
+	doc, err := c.hv.FindStoragePoolSources(poolType.String(), string(srcXML), 0)
 	if err != nil {
 		return Sources{}, wrap("find storage pool sources", err)
 	}

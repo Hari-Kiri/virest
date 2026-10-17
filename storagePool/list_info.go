@@ -3,17 +3,26 @@ package storagePool
 import (
 	"sync"
 
+	"github.com/Hari-Kiri/virest/utilities"
 	"libvirt.org/go/libvirt"
-	"libvirt.org/go/libvirtxml"
 )
 
 // Info returns volatile information about a storage pool (usage, state, flags).
-func (c *Connection) Info(uuid string) (info Info, err error) {
-	pool, err := c.lookupPool(uuid)
+// ref is a pool name or UUID (virsh-style).
+func (c *Connection) Info(ref string) (info Info, err error) {
+	pool, err := c.lookupPool(ref)
 	if err != nil {
 		return Info{}, err
 	}
 	defer finishFree(pool, &err)
+
+	uuid := ref
+	if !utilities.LooksLikeUUID(ref) {
+		uuid, err = pool.GetUUIDString()
+		if err != nil {
+			return Info{}, wrap("get pool uuid", err)
+		}
+	}
 
 	name, poolInfo, autostart, persistent, err := loadInfoAttrs(pool)
 	if err != nil {
@@ -27,7 +36,7 @@ func (c *Connection) Info(uuid string) (info Info, err error) {
 		Persistent: persistent,
 	}
 	if poolInfo != nil {
-		info.State = poolInfo.State
+		info.State = PoolState(poolInfo.State)
 		info.Capacity = poolInfo.Capacity
 		info.Allocation = poolInfo.Allocation
 		info.Available = poolInfo.Available
@@ -36,8 +45,9 @@ func (c *Connection) Info(uuid string) (info Info, err error) {
 }
 
 // List returns storage pools matching listFlags, with XML size fields using xmlFlags.
-func (c *Connection) List(listFlags uint, xmlFlags uint) ([]PoolSummary, error) {
-	pools, err := c.hv.ListAllStoragePools(libvirt.ConnectListAllStoragePoolsFlags(listFlags))
+// Primary API equivalent to virsh pool-list.
+func (c *Connection) List(listFlags utilities.ListFlags, xmlFlags utilities.XMLFlags) ([]PoolSummary, error) {
+	pools, err := c.hv.ListAllStoragePools(listFlags.Libvirt())
 	if err != nil {
 		return nil, wrap("list storage pools", err)
 	}
@@ -45,7 +55,7 @@ func (c *Connection) List(listFlags uint, xmlFlags uint) ([]PoolSummary, error) 
 	n := len(pools)
 	result := make([]PoolSummary, n)
 	for i := 0; i < n; i++ {
-		summary, sumErr := summarizePool(pools[i], libvirt.StorageXMLFlags(xmlFlags))
+		summary, sumErr := summarizePool(pools[i], xmlFlags.Libvirt())
 		freeErr := pools[i].Free()
 		if sumErr != nil {
 			_ = freePoolsFrom(pools, i+1)
@@ -58,6 +68,21 @@ func (c *Connection) List(listFlags uint, xmlFlags uint) ([]PoolSummary, error) 
 		result[i] = summary
 	}
 	return result, nil
+}
+
+// ListActive lists active pools (virsh pool-list default).
+func (c *Connection) ListActive(xmlFlags utilities.XMLFlags) ([]PoolSummary, error) {
+	return c.List(utilities.Flags.List.Active, xmlFlags)
+}
+
+// ListInactive lists inactive pools (virsh pool-list --inactive).
+func (c *Connection) ListInactive(xmlFlags utilities.XMLFlags) ([]PoolSummary, error) {
+	return c.List(utilities.Flags.List.Inactive, xmlFlags)
+}
+
+// ListAll lists active and inactive pools (virsh pool-list --all).
+func (c *Connection) ListAll(xmlFlags utilities.XMLFlags) ([]PoolSummary, error) {
+	return c.List(utilities.Flags.List.Active|utilities.Flags.List.Inactive, xmlFlags)
 }
 
 func summarizePool(pool poolHandle, xmlFlags libvirt.StorageXMLFlags) (PoolSummary, error) {
@@ -73,7 +98,7 @@ func summarizePool(pool poolHandle, xmlFlags libvirt.StorageXMLFlags) (PoolSumma
 		Persistent: persistent,
 	}
 	if poolInfo != nil {
-		summary.State = poolInfo.State
+		summary.State = PoolState(poolInfo.State)
 	}
 	if model.Capacity != nil {
 		summary.Capacity = *model.Capacity
@@ -124,7 +149,7 @@ func loadInfoAttrs(pool poolHandle) (name string, info *libvirt.StoragePoolInfo,
 func loadSummaryAttrs(
 	pool poolHandle,
 	xmlFlags libvirt.StorageXMLFlags,
-) (model libvirtxml.StoragePool, info *libvirt.StoragePoolInfo, autostart, persistent bool, err error) {
+) (model utilities.StoragePool, info *libvirt.StoragePoolInfo, autostart, persistent bool, err error) {
 	// Sequential on List hot path: avoid N×4 goroutines under HA load.
 	err = withPoolRef(pool, "ref pool for detail", func() error {
 		var xmlErr error

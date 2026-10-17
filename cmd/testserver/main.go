@@ -11,8 +11,8 @@ import (
 
 	"github.com/Hari-Kiri/virest/cmd/testserver/auth"
 	"github.com/Hari-Kiri/virest/cmd/testserver/handlers"
+	"github.com/Hari-Kiri/virest/storagePool"
 	httpSwagger "github.com/swaggo/http-swagger/v2"
-	"libvirt.org/go/libvirt"
 
 	_ "github.com/Hari-Kiri/virest/cmd/testserver/docs"
 )
@@ -72,32 +72,29 @@ func mustAuthStore(appName, usersPath string, lifetimeSec int) *auth.Store {
 }
 
 func startLibvirtEvents() {
-	if err := libvirt.EventRegisterDefaultImpl(); err != nil {
-		slog.Error("event register", "err", err)
-		os.Exit(1)
-	}
-	go func() {
-		for {
-			if err := libvirt.EventRunDefaultImpl(); err != nil {
-				slog.Error("event loop", "err", err)
-				os.Exit(1)
-			}
-		}
-	}()
+	storagePool.RegisterEventLoop()
 }
 
 func registerRoutes(deps *handlers.Deps) *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/storage-pool/authenticate", deps.Authenticate)
 	mux.HandleFunc("/storage-pool/find-storage-pool-sources", deps.FindSources)
+	mux.HandleFunc("/storage-pool/find-sources-as", deps.FindSourcesAs)
 	mux.HandleFunc("/storage-pool/list", deps.List)
 	mux.HandleFunc("/storage-pool/info", deps.Info)
 	mux.HandleFunc("/storage-pool/detail", deps.Detail)
+	mux.HandleFunc("/storage-pool/dump", deps.Dump)
+	mux.HandleFunc("/storage-pool/name", deps.Name)
+	mux.HandleFunc("/storage-pool/uuid-by-name", deps.UUIDByName)
 	mux.HandleFunc("/storage-pool/get-uid", deps.ProcessUID)
 	mux.HandleFunc("/storage-pool/get-gid", deps.ProcessGID)
 	mux.HandleFunc("/storage-pool/define", deps.Define)
+	mux.HandleFunc("/storage-pool/define-as", deps.DefineAs)
+	mux.HandleFunc("/storage-pool/create-transient", deps.CreateTransient)
+	mux.HandleFunc("/storage-pool/create-as", deps.CreateAs)
 	mux.HandleFunc("/storage-pool/build", deps.Build)
 	mux.HandleFunc("/storage-pool/create", deps.Create)
+	mux.HandleFunc("/storage-pool/start", deps.Start)
 	mux.HandleFunc("/storage-pool/autostart", deps.Autostart)
 	mux.HandleFunc("/storage-pool/destroy", deps.Destroy)
 	mux.HandleFunc("/storage-pool/undefine", deps.Undefine)
