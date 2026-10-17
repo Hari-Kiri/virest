@@ -380,7 +380,7 @@ func TestWaitEventAndStreamEvents(t *testing.T) {
 
 	select {
 	case ev := <-done:
-		if ev.EventLifecycle.Event != libvirt.STORAGE_POOL_EVENT_STARTED {
+		if ev.EventLifecycle != PoolEventLifecycleStarted {
 			t.Fatalf("event=%v", ev.EventLifecycle)
 		}
 		if len(hv.deregisterCalls) == 0 {

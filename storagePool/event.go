@@ -14,10 +14,40 @@ var (
 	errUnsupportedEventKind = errors.New("unsupported event kind")
 )
 
+// RegisterEventLoop registers the default libvirt event implementation
+// and runs the event loop in a background goroutine.
+//
+// Call this once before using WaitEvent or StreamEvents. Callers do not
+// need to import libvirt.org/go/libvirt.
+func RegisterEventLoop() {
+	_ = libvirt.EventRegisterDefaultImpl()
+	go func() {
+		for {
+			_ = libvirt.EventRunDefaultImpl()
+		}
+	}()
+}
+
+// poolEventLifecycle converts a libvirt storage pool event lifecycle value
+// to the library's PoolEventLifecycle type.
+func poolEventLifecycle(e libvirt.StoragePoolEventLifecycle) PoolEventLifecycle {
+	switch e.Event {
+	case libvirt.STORAGE_POOL_EVENT_DEFINED,
+		libvirt.STORAGE_POOL_EVENT_CREATED,
+		libvirt.STORAGE_POOL_EVENT_STARTED:
+		return PoolEventLifecycleStarted
+	case libvirt.STORAGE_POOL_EVENT_UNDEFINED,
+		libvirt.STORAGE_POOL_EVENT_DELETED,
+		libvirt.STORAGE_POOL_EVENT_STOPPED:
+		return PoolEventLifecycleStopped
+	default:
+		return PoolEventLifecycleUndefined
+	}
+}
+
 // WaitEvent blocks until the selected storage-pool event occurs.
 //
-// Callers must register a default libvirt event implementation and run the
-// event loop (EventRegisterDefaultImpl + EventRunDefaultImpl) in the process.
+// Callers must run the process-wide libvirt event loop (see RegisterEventLoop).
 // ref is a pool name or UUID.
 func (c *Connection) WaitEvent(ref string, kind EventKind) (ev Event, err error) {
 	if kind > EventRefresh {
@@ -42,7 +72,7 @@ func (c *Connection) WaitEvent(ref string, kind EventKind) (ev Event, err error)
 }
 
 func (c *Connection) waitLifecycleEvent(pool poolHandle) (ev Event, err error) {
-	ch := make(chan libvirt.StoragePoolEventLifecycle, 1)
+	ch := make(chan PoolEventLifecycle, 1)
 	callbackID, regErr := c.hv.StoragePoolEventLifecycleRegister(pool, func(
 		_ *libvirt.Connect,
 		_ *libvirt.StoragePool,
@@ -51,7 +81,7 @@ func (c *Connection) waitLifecycleEvent(pool poolHandle) (ev Event, err error) {
 		if event == nil {
 			return
 		}
-		ch <- *event
+		ch <- poolEventLifecycle(*event)
 	})
 	if regErr != nil {
 		return Event{}, wrap("register lifecycle event", regErr)
@@ -148,7 +178,7 @@ func (c *Connection) registerEventStream(
 			now := time.Now()
 			select {
 			case events <- Event{
-				EventLifecycle: *event,
+				EventLifecycle: poolEventLifecycle(*event),
 				Timestamp:      now.Unix(),
 				TimestampNano:  now.UnixNano(),
 			}:

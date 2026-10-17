@@ -36,7 +36,7 @@ func (c *Connection) Info(ref string) (info Info, err error) {
 		Persistent: persistent,
 	}
 	if poolInfo != nil {
-		info.State = poolInfo.State
+		info.State = PoolState(poolInfo.State)
 		info.Capacity = poolInfo.Capacity
 		info.Allocation = poolInfo.Allocation
 		info.Available = poolInfo.Available
@@ -98,7 +98,7 @@ func summarizePool(pool poolHandle, xmlFlags libvirt.StorageXMLFlags) (PoolSumma
 		Persistent: persistent,
 	}
 	if poolInfo != nil {
-		summary.State = poolInfo.State
+		summary.State = PoolState(poolInfo.State)
 	}
 	if model.Capacity != nil {
 		summary.Capacity = *model.Capacity
