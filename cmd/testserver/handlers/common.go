@@ -10,7 +10,6 @@ import (
 	"github.com/Hari-Kiri/virest/cmd/testserver/auth"
 	"github.com/Hari-Kiri/virest/storagePool"
 	"github.com/Hari-Kiri/virest/utilities"
-	"libvirt.org/go/libvirt"
 )
 
 // Envelope is the standard JSON response shape for the testserver.
@@ -87,11 +86,11 @@ func httpStatusFor(err error) int {
 	}
 	if code, ok := utilities.Code(err); ok {
 		switch code {
-		case libvirt.ERR_AUTH_FAILED:
+		case utilities.ErrAuthFailed:
 			return http.StatusUnauthorized
-		case libvirt.ERR_NO_STORAGE_POOL, libvirt.ERR_NO_SUPPORT:
+		case utilities.ErrNoStoragePool, utilities.ErrNoSupport:
 			return http.StatusNotFound
-		case libvirt.ERR_INVALID_ARG, libvirt.ERR_INVALID_CONN:
+		case utilities.ErrInvalidArg, utilities.ErrInvalidConn:
 			return http.StatusBadRequest
 		default:
 			return http.StatusInternalServerError

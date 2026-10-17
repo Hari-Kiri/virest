@@ -11,8 +11,8 @@ import (
 
 	"github.com/Hari-Kiri/virest/cmd/testserver/auth"
 	"github.com/Hari-Kiri/virest/cmd/testserver/handlers"
+	"github.com/Hari-Kiri/virest/storagePool"
 	httpSwagger "github.com/swaggo/http-swagger/v2"
-	"libvirt.org/go/libvirt"
 
 	_ "github.com/Hari-Kiri/virest/cmd/testserver/docs"
 )
@@ -72,18 +72,7 @@ func mustAuthStore(appName, usersPath string, lifetimeSec int) *auth.Store {
 }
 
 func startLibvirtEvents() {
-	if err := libvirt.EventRegisterDefaultImpl(); err != nil {
-		slog.Error("event register", "err", err)
-		os.Exit(1)
-	}
-	go func() {
-		for {
-			if err := libvirt.EventRunDefaultImpl(); err != nil {
-				slog.Error("event loop", "err", err)
-				os.Exit(1)
-			}
-		}
-	}()
+	storagePool.RegisterEventLoop()
 }
 
 func registerRoutes(deps *handlers.Deps) *http.ServeMux {
