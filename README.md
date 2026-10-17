@@ -65,15 +65,10 @@ Pool models use **`utilities.StoragePool`** (and related types) — callers do n
 | `Capabilities` / `FindSources` / `FindSourcesAs` | Discovery helpers |
 | `WaitEvent` / `StreamEvents` | Lifecycle/refresh events |
 
-`StreamEvents` is transport-agnostic (`context` + callback). For event APIs, register the process-wide libvirt event loop once:
+`StreamEvents` is transport-agnostic (`context` + callback). For event APIs, register and run the process-wide libvirt event loop once:
 
 ```go
-libvirt.EventRegisterDefaultImpl()
-go func() {
-	for {
-		_ = libvirt.EventRunDefaultImpl()
-	}
-}()
+storagePool.RegisterEventLoop()
 ```
 
 ## Tests

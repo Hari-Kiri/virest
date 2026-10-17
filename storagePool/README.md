@@ -1394,17 +1394,12 @@ sources, err := conn.FindSourcesAs(utilities.PoolTypeISCSI, utilities.FindSource
 Prerequisite: the process must register and run the libvirt event loop:
 
 ```go
-import "libvirt.org/go/libvirt"
-
-libvirt.EventRegisterDefaultImpl()
-go func() {
-	for {
-		_ = libvirt.EventRunDefaultImpl()
-	}
-}()
+storagePool.RegisterEventLoop()
 ```
 
 Without that loop, `WaitEvent` / `StreamEvents` will hang or fail.
+
+Callers do not import `libvirt.org/go/libvirt`. Pool state uses `PoolState` (`Info.State`, `PoolSummary.State`) and event lifecycle uses `PoolEventLifecycle` (`Event.EventLifecycle`).
 
 #### `WaitEvent(ref, kind EventKind) (Event, error)`
 
